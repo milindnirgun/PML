@@ -125,19 +125,19 @@ pml_testing &lt;- pml_final[-inTrain, ]</code></pre>
 <pre class="r"><code>set.seed(32334)
 
 #Try the Linear Discriminant Analysis model
-#modlda &lt;- train(classe ~ ., data=training, method=&quot;lda&quot;)
-#save(modlda, file=&quot;mod_lda.rData&quot;)
-#rm(modlda)
+modlda &lt;- train(classe ~ ., data=training, method=&quot;lda&quot;)
+save(modlda, file=&quot;mod_lda.rData&quot;)
+rm(modlda)
 
 #Try the Random Forest model
-#modrf &lt;- train(classe ~ ., data=training, method=&quot;rf&quot;)
-#save(modrf, file=&quot;mod_rf.rData&quot;)
-#rm(modrf)
+modrf &lt;- train(classe ~ ., data=training, method=&quot;rf&quot;)
+save(modrf, file=&quot;mod_rf.rData&quot;)
+rm(modrf)
 
 ##Try the Bagged AdaBoost model
-#modadabag &lt;- train(classe ~ ., data=training, method=&quot;adabag&quot;)
-#save(modadabag, file=&quot;mod_adabag.rData&quot;)
-#rm(modadabag)</code></pre>
+modadabag &lt;- train(classe ~ ., data=training, method=&quot;adabag&quot;)
+save(modadabag, file=&quot;mod_adabag.rData&quot;)
+rm(modadabag)</code></pre>
 </div>
 <div id="prediction-and-sampling-errors" class="section level2">
 <h2>Prediction and Sampling Errors</h2>
