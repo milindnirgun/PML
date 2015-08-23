@@ -1,0 +1,154 @@
+---
+title: "Practical Machine Learning Project"
+output: html_document
+---
+
+##Overview  
+The purpose of this report is to predict with maximum accuracy how well specific weight lifting exercises were perfomed by a group of fitness enthusiasts based on movement data collected using fitness accelerometers. The __Weight Lifting Exercise (WLE)__ data is publicly available at the website http://groupware.les.inf.puc-rio.br/har and is based on a published paper referenced in the Bibliography in this report.  
+We will extensively use the R package, _caret_, throughout this analysis for partitioning of data, training, cross validation and measuring Accuracy.
+
+##Initialization and Data Loading  
+First, we initialize the R environment by loading the libraries used for this predictive analysis.  
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(caret)
+library(doParallel)
+library(MASS)
+library(randomForest)
+```
+
+In order to make this report reproducible, we will download the data from the url made available for this project and store it locally if it does not already exist.  
+
+```{r init, echo=TRUE}
+trainingUrl <- c("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+testingUrl <- c("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+trainingFile <- "./trainingFile"
+testingFile <- "./testingFile"
+
+if(!file.exists(trainingFile))
+  download.file(trainingUrl, destfile = trainingFile, method="curl")
+
+if(!file.exists(testingFile))
+  download.file(testingUrl, destfile = testingFile, method="curl")
+
+```
+
+
+##Data Preprocessing and Exploratory Analysis  
+We will read in the downloaded data files in R data frames and while doing so replace some of the NA and empty data fields with _NA_ to get a cleaner data set to work with.  
+
+```{r reading, echo=TRUE}
+pml_raw <- read.csv(trainingFile, na.strings=c("NA",""), sep=",")
+dim(pml_raw)
+```
+
+Exploring the raw data we will try to find how many _NA_ values are within the data and what variables are relevant to our predictive analysis and try to choose only those variables that will be deterministic in predicting the classification we want.  
+```{r exploring, echo=TRUE}
+nas <- apply(pml_raw,2, function(x) sum(is.na(x)))
+table(nas)
+```
+
+This shows that out of the 160 variables, 100 variables have 19216 NA values out of the 19622 total observations. This means that over 97% of the values in these variables will not have any influence on our prediction. Therefore we will remove these variables from the data to be processed. Upon examination of the data, it appears that these 100 variables are aggregate values like min, max, avg, std. deviation, amplitude, kurtosis and skewness for each of the different body measurement types. As their names all start with the same pattern, we can easily discard them using pattern matching with grep as below.    
+Furthermore, the first seven variables are only meant for book keeping and are not useful in our regression analysis. So we can discard these as well from our final data set for processing.  
+```{r cleaning, echo=TRUE}
+##Make a list of variables for exclusion
+nm <- names(pml_raw)
+aggregate_vars <- nm %in% grep("^min|^max|^avg|^var|^stddev|^amplitude|^kurtosis|^skewness", nm, value=TRUE)
+
+##create a data frame sans the variables containing mostly NAs and the first 7 bookkeeping variables
+#test1 <- subset(pml, aggregate_vars)
+pml_tmp <- pml_raw[!aggregate_vars]
+pml_final <- pml_tmp[-c(1:7)]
+
+```
+
+##Data Slicing  
+Next, we take the cleaned up training set, __pml_final__, and split into training and testing partitions, using a 70-30 split. We will set a seed value to be able to reproduce the same results on every run and make this report reproducible. We will use the training dataset to train different models and then apply those on the testing dataset for prediction.  
+```{r slicing, echo=TRUE}
+set.seed(32343)
+
+#create data splits
+inTrain <- createDataPartition(y = pml_final$classe, p=0.7, list=FALSE)
+pml_training <- pml_final[inTrain, ]
+pml_testing <- pml_final[-inTrain, ]
+```
+
+##Training Models  
+We will fit a few different classification models on the training data set with the default train options. It was found during researching this project that changing the options from the default did not yield any significant changes to the outcome, so we will leave the defaults. As the training process can take hours, we are going to persist the models output by the train function to local files. Later we load these models back from the saved files for prediction purpose. This method allows us to try out many different models over a long period of time and be able to do a good comparison. It also make the reproducible report execution faster by not running the training chunk every time the report needs to be generated.  
+```{r training, echo=TRUE}
+set.seed(32334)
+
+#Try the Linear Discriminant Analysis model
+#modlda <- train(classe ~ ., data=training, method="lda")
+#save(modlda, file="mod_lda.rData")
+#rm(modlda)
+
+#Try the Random Forest model
+#modrf <- train(classe ~ ., data=training, method="rf")
+#save(modrf, file="mod_rf.rData")
+#rm(modrf)
+
+##Try the Bagged AdaBoost model
+#modadabag <- train(classe ~ ., data=training, method="adabag")
+#save(modadabag, file="mod_adabag.rData")
+#rm(modadabag)
+
+```
+
+##Prediction and Sampling Errors  
+Now that we have saved models to assess for prediction, we will load each model from the above and examine it. We then apply it our testing dataset, pml_testing, for validation. We will select the best fit model based on _Accuracy_ and _Kappa_.  
+First, let us try the Linear Discriminant Analysis model.  
+```{r lda, echo=TRUE}
+#First predict with the LDA model
+load("mod_lda.rData")
+modlda
+pred_lda <- predict(modlda, pml_testing)
+cm_lda <- confusionMatrix(pred_lda, pml_testing$classe)
+rm(modlda)
+```
+Next, we will try the Random Forest model.   
+```{r rf, echo=TRUE}
+#Second try the RF model
+load("mod_rf.rData")
+modrf
+pred_rf <- predict(modrf, pml_testing)
+cm_rf <- confusionMatrix(pred_rf, pml_testing$classe)
+#rm(modrf)
+```
+Lastly, we will try the Bagged AdaBoost model.  
+```{r adabag, echo=TRUE}
+#Third try the adabag model
+load("mod_adabag.rData")
+modadabag
+pred_adabag <- predict(modadabag, pml_testing)
+cm_adabag <- confusionMatrix(pred_adabag, pml_testing$classe)
+rm(modadabag)
+```
+Let us compare the out of sample accuracy of the three models by printing the Accuracy for each.      
+```{r accuracy, echo=TRUE}
+cm_lda$overall["Accuracy"];cm_rf$overall["Accuracy"];cm_adabag$overall["Accuracy"]
+
+```
+
+##Conclusion  
+As is obvious from the results, the accuracy is highest with the Random Forest model, __99.72%__. Therefore we will select this model to apply for the test data provided for predicting the quality of the activities recorded.  
+We will read the downloaded test data file into a new data frame and we will use our Random Forest model created above to create the _classe_ variable for the 20 observations in this dataset.  
+```{r conclusion, echo=TRUE}
+test_data <- read.csv(testingFile, na.strings=c("NA",""), sep=",")
+dim(test_data)
+pred_test <- predict(modrf, newdata=test_data)
+test_data$classe <- pred_test
+```
+
+Thus we have successfully predicted the quality of activity for a new set of similar measurements from another sample of activity monitors with an approximate accuracy of __99.7%__.   
+
+
+##Bibliography  
+__Paper on WLE Dataset__  
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.  
+* [WLE Document](http://groupware.les.inf.puc-rio.br/public/papers/2013.Velloso.QAR-WLE.pdf)   
+* [Human Activity Recognition](http://groupware.les.inf.puc-rio.br/har)   
+* [The Caret Package](http://topepo.github.io/caret/index.html)    
+* [Random Forests](http://www.stat.berkeley.edu/~breiman/RandomForests/cc_home.htm)  
+
+
